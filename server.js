@@ -9,7 +9,8 @@ app.use(cors({
     origin: [
         "http://localhost:3000", 
         "https://nhatrang-rewards.netlify.app",
-        "https://*.netlify.app"
+        "https://*.netlify.app",
+        "https://nhatrang-rewards.netlify.app"  // Frontend URL của bạn
     ],
     credentials: true
 }));
