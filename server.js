@@ -6,12 +6,8 @@ const app = express();
 
 // CORS configuration for production
 app.use(cors({
-    origin: [
-        "http://localhost:3000", 
-        "https://nhatrang-rewards.netlify.app",
-        "https://*.netlify.app",
-        "https://nhatrang-rewards.netlify.app"  // Frontend URL của bạn
-    ],
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
 }));
 
