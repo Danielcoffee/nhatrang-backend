@@ -252,69 +252,6 @@ async function createHederaAccount() {
         }
     }
 }
-async function createHederaAccount() {
-    let retries = 3;
-    
-    while (retries > 0) {
-        try {
-            console.log(`🔄 Tạo Hedera account (attempt ${4-retries}/3)...`);
-            
-            const userPrivateKey = PrivateKey.generate();
-            
-            // THÊM DELAY giữa các transaction
-            if (retries < 3) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-            
-            // 1. TẠO ACCOUNT
-            const accountCreateTx = new AccountCreateTransaction()
-                .setKey(userPrivateKey.publicKey)
-                .setInitialBalance(0)
-                .freezeWith(client);
-                
-            const accountCreateSign = await accountCreateTx.sign(userPrivateKey);
-            const accountCreateSubmit = await accountCreateSign.execute(client);
-            const accountCreateReceipt = await accountCreateSubmit.getReceipt(client);
-            const userAccountId = accountCreateReceipt.accountId.toString();
-            
-            console.log(`✅ Đã tạo Hedera account: ${userAccountId}`);
-            
-            // 2. ASSOCIATE TOKEN - THÊM RETRY VÀ CHỜ
-            console.log(`🔗 Associating token với account...`);
-            const associateTx = await new TokenAssociateTransaction()
-                .setAccountId(userAccountId)
-                .setTokenIds([TOKEN_ID])
-                .freezeWith(client)
-                .sign(userPrivateKey);
-            
-            const associateSubmit = await associateTx.execute(client);
-            const associateReceipt = await associateSubmit.getReceipt(client); // ✅ QUAN TRỌNG: Chờ receipt
-            
-            console.log(`✅ Đã associate token với account ${userAccountId}`);
-            
-            // 3. CHỜ 2 GIÂY ĐẢM BẢO ASSOCIATE COMPLETE
-            console.log(`⏳ Chờ association hoàn tất...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            return {
-                accountId: userAccountId,
-                privateKey: userPrivateKey.toString()
-            };
-            
-        } catch (error) {
-            retries--;
-            console.error(`❌ Lỗi tạo account (${error.status}):`, error.message);
-            
-            if (retries === 0) {
-                throw new Error(`Lỗi tạo Hedera account sau 3 lần thử: ${error.message}`);
-            }
-            
-            console.log(`⏳ Chờ 2 giây trước khi thử lại...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-    }
-}
-
 
 async function addPoints(userAccountId, points) {
     try {
