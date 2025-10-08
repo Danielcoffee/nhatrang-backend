@@ -204,6 +204,7 @@ async function createHederaAccount() {
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
             
+            // 1. TẠO ACCOUNT
             const accountCreateTx = new AccountCreateTransaction()
                 .setKey(userPrivateKey.publicKey)
                 .setInitialBalance(0)
@@ -216,7 +217,8 @@ async function createHederaAccount() {
             
             console.log(`✅ Đã tạo Hedera account: ${userAccountId}`);
             
-            // Associate token với account mới
+            // 2. ASSOCIATE TOKEN - THÊM RETRY VÀ CHỜ
+            console.log(`🔗 Associating token với account...`);
             const associateTx = await new TokenAssociateTransaction()
                 .setAccountId(userAccountId)
                 .setTokenIds([TOKEN_ID])
@@ -224,9 +226,13 @@ async function createHederaAccount() {
                 .sign(userPrivateKey);
             
             const associateSubmit = await associateTx.execute(client);
-            await associateSubmit.getReceipt(client);
+            const associateReceipt = await associateSubmit.getReceipt(client); // ✅ QUAN TRỌNG: Chờ receipt
             
             console.log(`✅ Đã associate token với account ${userAccountId}`);
+            
+            // 3. CHỜ 2 GIÂY ĐẢM BẢO ASSOCIATE COMPLETE
+            console.log(`⏳ Chờ association hoàn tất...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
             return {
                 accountId: userAccountId,
@@ -246,6 +252,7 @@ async function createHederaAccount() {
         }
     }
 }
+
 
 async function addPoints(userAccountId, points) {
     try {
