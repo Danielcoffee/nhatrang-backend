@@ -22,6 +22,168 @@ const TOKEN_ID = "0.0.6940016";
 // 🔧 THÊM SIMPLE DATABASE (dùng array - production dùng MongoDB)
 let userDatabase = [];
 
+// 🔧 PARTNER SUBSCRIPTION SYSTEM
+
+// In-memory database (sau này chuyển sang MongoDB)
+let partnersDatabase = [];
+let subscriptionsDatabase = [];
+
+// 🔧 SUBSCRIPTION PLANS
+const SUBSCRIPTION_PLANS = {
+    basic: {
+        name: "Basic",
+        monthlyFee: 500000, // 500k VND
+        pointsLimit: 1000,
+        features: ["QR Scanner", "Basic Dashboard", "1000 points/month"]
+    },
+    premium: {
+        name: "Premium", 
+        monthlyFee: 1000000, // 1M VND
+        pointsLimit: 5000,
+        features: ["QR Scanner", "Advanced Analytics", "5000 points/month", "Priority Support"]
+    }
+};
+
+// 🔧 API: GET SUBSCRIPTION PLANS
+app.get('/api/subscription/plans', (req, res) => {
+    res.json({
+        success: true,
+        plans: SUBSCRIPTION_PLANS
+    });
+});
+
+// 🔧 API: PARTNER SUBSCRIPTION
+app.post('/api/partners/subscribe', async (req, res) => {
+    try {
+        const { businessName, phone, email, planType } = req.body;
+        
+        if (!businessName || !phone || !planType) {
+            return res.json({ success: false, message: 'Thiếu thông tin đăng ký' });
+        }
+
+        // Kiểm tra plan hợp lệ
+        if (!SUBSCRIPTION_PLANS[planType]) {
+            return res.json({ success: false, message: 'Gói subscription không hợp lệ' });
+        }
+
+        console.log(`🏪 New partner subscription: ${businessName} - ${planType}`);
+
+        // Tạo partner ID
+        const partnerId = 'P' + Date.now();
+        
+        // Tạo subscription
+        const subscription = {
+            partnerId: partnerId,
+            businessName: businessName,
+            phone: phone,
+            email: email || '',
+            planType: planType,
+            monthlyFee: SUBSCRIPTION_PLANS[planType].monthlyFee,
+            status: 'pending', // pending, active, cancelled
+            joinDate: new Date().toISOString(),
+            trialEnds: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days trial
+        };
+
+        // Lưu vào database
+        partnersDatabase.push(subscription);
+        
+        console.log(`✅ Partner registered: ${partnerId} - ${businessName}`);
+
+        res.json({
+            success: true,
+            message: `Đăng ký thành công! Bạn có 30 ngày dùng thử. Phí: ${SUBSCRIPTION_PLANS[planType].monthlyFee.toLocaleString()}VND/tháng`,
+            partner: {
+                id: partnerId,
+                businessName: businessName,
+                plan: planType,
+                monthlyFee: SUBSCRIPTION_PLANS[planType].monthlyFee,
+                status: 'pending',
+                trialEnds: subscription.trialEnds
+            },
+            nextSteps: "Chúng tôi sẽ liên hệ để xác nhận và kích hoạt tài khoản."
+        });
+
+    } catch (error) {
+        console.error('Subscription error:', error);
+        res.json({ 
+            success: false, 
+            message: 'Lỗi đăng ký: ' + error.message 
+        });
+    }
+});
+
+// 🔧 API: ACTIVATE PARTNER (sau khi payment confirmed)
+app.post('/api/partners/activate', (req, res) => {
+    try {
+        const { partnerId } = req.body;
+        
+        const partner = partnersDatabase.find(p => p.partnerId === partnerId);
+        if (!partner) {
+            return res.json({ success: false, message: 'Partner không tồn tại' });
+        }
+
+        partner.status = 'active';
+        partner.activatedAt = new Date().toISOString();
+        
+        console.log(`✅ Partner activated: ${partnerId} - ${partner.businessName}`);
+
+        res.json({
+            success: true,
+            message: 'Partner đã được kích hoạt!',
+            partner: partner
+        });
+
+    } catch (error) {
+        console.error('Activation error:', error);
+        res.json({ 
+            success: false, 
+            message: 'Lỗi kích hoạt: ' + error.message 
+        });
+    }
+});
+
+// 🔧 API: GET PARTNER INFO
+app.get('/api/partners/:partnerId', (req, res) => {
+    try {
+        const partner = partnersDatabase.find(p => p.partnerId === req.params.partnerId);
+        
+        if (!partner) {
+            return res.json({ success: false, message: 'Partner không tồn tại' });
+        }
+
+        res.json({
+            success: true,
+            partner: partner
+        });
+
+    } catch (error) {
+        res.json({ 
+            success: false, 
+            message: 'Lỗi lấy thông tin partner: ' + error.message 
+        });
+    }
+});
+
+// 🔧 API: GET ALL PARTNERS (Admin)
+app.get('/api/admin/partners', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            partners: partnersDatabase,
+            total: partnersDatabase.length,
+            active: partnersDatabase.filter(p => p.status === 'active').length,
+            pending: partnersDatabase.filter(p => p.status === 'pending').length
+        });
+
+    } catch (error) {
+        res.json({ 
+            success: false, 
+            message: 'Lỗi lấy danh sách partners: ' + error.message 
+        });
+    }
+});
+
+
 // 🔧 FUNCTION TÌM USER THEO SĐT
 function findUserByPhone(phone) {
     return userDatabase.find(user => user.phone === phone);
