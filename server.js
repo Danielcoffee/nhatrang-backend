@@ -18,6 +18,29 @@ const OPERATOR_ACCOUNT_ID = "0.0.6939984";
 const OPERATOR_PRIVATE_KEY = process.env.OPERATOR_PRIVATE_KEY || "7b5faacb18fdd45bffeddfdfaff97f28d1f1f7da0103dccb3a0b7911bde89bf3";
 const TOKEN_ID = "0.0.6940016";
 
+
+// 🔧 THÊM SIMPLE DATABASE (dùng array - production dùng MongoDB)
+let userDatabase = [];
+
+// 🔧 FUNCTION TÌM USER THEO SĐT
+function findUserByPhone(phone) {
+    return userDatabase.find(user => user.phone === phone);
+}
+
+// 🔧 FUNCTION LƯU USER MỚI
+function saveUser(user) {
+    const existingUser = findUserByPhone(user.phone);
+    if (existingUser) {
+        // Update existing user
+        Object.assign(existingUser, user);
+    } else {
+        // Add new user
+        userDatabase.push(user);
+    }
+    console.log(`💾 Saved user: ${user.phone} -> ${user.hederaAccountId}`);
+}
+
+
 // Khởi tạo Hedera Client
 const client = Client.forTestnet();
 
@@ -85,26 +108,94 @@ app.post('/api/register', async (req, res) => {
             return res.json({ success: false, message: 'Thiếu số điện thoại' });
         }
         
-        console.log(`📱 [PRODUCTION] Đăng ký user mới: ${phone}`);
+        console.log(`📱 Đăng ký user: ${phone}`);
         
+        // 🔧 KIỂM TRA USER ĐÃ TỒN TẠI CHƯA
+        const existingUser = findUserByPhone(phone);
+        if (existingUser) {
+            console.log(`✅ User đã tồn tại: ${existingUser.hederaAccountId}`);
+            return res.json({
+                success: true,
+                message: 'User đã tồn tại trong hệ thống',
+                user: existingUser,
+                existing: true
+            });
+        }
+        
+        // 🔧 TẠO ACCOUNT MỚI CHO USER
         const userAccountInfo = await createHederaAccount();
+        
+        // 🔧 THÊM ĐIỂM CHÀO MỪNG
         const transactionId = await addPoints(userAccountInfo.accountId, 50);
+        
+        // 🔧 TẠO USER OBJECT
+        const newUser = {
+            phone: phone,
+            name: name || `Khách hàng ${phone}`,
+            hederaAccountId: userAccountInfo.accountId,
+            points: 50,
+            createdAt: new Date().toISOString(),
+            transactions: [transactionId]
+        };
+        
+        // 🔧 LƯU VÀO DATABASE
+        saveUser(newUser);
         
         res.json({
             success: true,
             message: 'Đăng ký thành công! Nhận ngay 50 điểm chào mừng 🎁',
-            user: {
-                phone,
-                name: name || 'Khách hàng',
-                hederaAccountId: userAccountInfo.accountId,
-                points: 50
-            },
-            transactionId,
+            user: newUser,
+            transactionId: transactionId,
             welcomeBonus: 50
         });
         
     } catch (error) {
         console.error('Lỗi đăng ký:', error);
+        res.json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+});
+
+
+// 🔧 API THÊM ĐIỂM CHO USER ĐÃ CÓ
+app.post('/api/add-points-to-phone', async (req, res) => {
+    try {
+        const { phone, points, partnerId } = req.body;
+        
+        if (!phone || !points) {
+            return res.json({ success: false, message: 'Thiếu thông tin' });
+        }
+        
+        console.log(`🎁 Thêm ${points} điểm cho SĐT: ${phone}`);
+        
+        // 🔧 TÌM USER THEO SĐT
+        const user = findUserByPhone(phone);
+        if (!user) {
+            return res.json({ 
+                success: false, 
+                message: 'Không tìm thấy user với SĐT này' 
+            });
+        }
+        
+        // 🔧 THÊM ĐIỂM VÀO ACCOUNT THẬT
+        const transactionId = await addPoints(user.hederaAccountId, parseInt(points));
+        
+        // 🔧 CẬP NHẬT ĐIỂM TRONG DATABASE
+        user.points += parseInt(points);
+        user.transactions.push(transactionId);
+        
+        res.json({
+            success: true,
+            message: `Đã thêm ${points} điểm cho ${phone}!`,
+            user: user,
+            transactionId: transactionId,
+            partnerId: partnerId || 'qr_scanner'
+        });
+        
+    } catch (error) {
+        console.error('Lỗi thêm điểm:', error);
         res.json({ 
             success: false, 
             message: error.message 
